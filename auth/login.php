@@ -1,35 +1,44 @@
 <?php
 session_start();
-include './config/db.php';
+require '../config/db.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $username = $_POST['username'];
-    $password = $_POST['password'];
+    $email = trim($_POST['email']);
+    $password = trim($_POST['password']);
 
     try {
-        $query = "SELECT user_id, password FROM register WHERE username = ?";
+        // Fetch user by email
+        $query = "SELECT id, name, password, role FROM users WHERE email = ?";
         $stmt = $pdo->prepare($query);
-        $stmt->execute([$username]);
+        $stmt->execute([$email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
 
-        if ($user) {
-            if ($password === $user['password']) {
-                $_SESSION['user_id'] = $user['user_id'];
-                $_SESSION['username'] = $username;
+        if ($user && password_verify($password, $user['password'])) {
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['name'] = $user['name'];
+            $_SESSION['role'] = $user['role'];
+            // $redirectPath = '';
 
-                $insertQuery = "INSERT INTO login (user_id, username, password) VALUES (?, ?, ?)";
-                $insertStmt = $pdo->prepare($insertQuery);
-                $insertStmt->execute([$user['user_id'], $username, $password]);
+            // Fix: Ensure correct redirect path
+            $redirectPath = ($user['role'] === 'admin') ? '../admin/dashboard.php' : '../user/dashboard.php';
 
-                echo json_encode(['status' => 200, 'success' => 'Login successful!']);
-            } else {
-                echo json_encode(['status' => 401, 'error' => 'Invalid password!']);
-            }
+            // if($user['role'] == 'admin') {
+            //     // $redirectPath = '../user/dashboard.php';
+            //     $redirectPath = 'admin';
+            //     // echo "admin role";
+            // } else {
+            //     // $redirectPath = '../user/dashboard.php';
+            //     $redirectPath = 'user';
+            //     // echo "user role";
+            // }
+
+            echo json_encode(['status' => 200, 'redirect' => $redirectPath]);
         } else {
-            echo json_encode(['status' => 401, 'error' => 'Invalid username or password!']);
+            echo json_encode(['status' => 401, 'error' => 'Invalid email or password!']);
         }
     } catch (PDOException $e) {
-        echo json_encode(['status' => 500, 'error' => "Error: " . $e->getMessage()]);
+        echo json_encode(['status' => 500, 'error' => "Database Error: " . $e->getMessage()]);
     }
 }
 ?>
